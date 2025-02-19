@@ -1,31 +1,58 @@
-#!/bin/sh
+#!/bin/bash
 
-# If a command fails then the deploy stops
-set -e
+# Define colors for output
+Red="\033[0;31m"
+Green="\033[0;32m"
+Color_Off="\033[0m"
 
-printf "\033[0;32mDeploying updates to GitHub...\033[0m\n"
+echo -e "$Green Deploying updates to GitHub...$Color_Off"
 
-# Build the project.
+# Get commit message from user or use a default message
+if [ "$1" ]; then
+  msg="$1"
+else
+  msg="Publishing site $(date)"
+fi
+
+# Get version tag from user input or prompt for one
+if [ "$2" ]; then
+  version="$2"
+else
+  read -p "$(echo -e $Red"Enter Tag Version: "$Color_Off)" version
+fi
+
+# Ensure we are on the correct branch
+echo -e "$Green Switching to gh-pages branch...$Color_Off"
+cd public
+git checkout master  # Ensure we are on the correct branch
+
+# Remove all old files from the repo
+echo -e "$Green Removing outdated content from public repo...$Color_Off"
+git rm -rf .
+
+# Go back to the root project directory
+cd ..
+
+# Update version files
+echo "$version" > version.txt
+echo "$(date +'%a, %Y-%m-%d %T')" > buildDate.txt
+
+# Build the site
 export HUGO_ENV=production
+echo -e "$Green Building the site...$Color_Off"
 hugo --environment production --minify
 
-# Go To Public folder
+# Commit and push changes to the public repository
 cd public
-
-# Add changes to git.
-git add .
-
-# Commit changes.
-msg="Publishing site $(date)"
-if [ -n "$*" ]; then
-	msg="$*"
-fi
+git add --all
 git commit -m "$msg"
+git push origin master  # Push cleaned and updated content
 
-# Push Public folder to microcks.github.io repo
-git push origin master
-
-# Go up to update the Public symlink
+# Go back to the main repo and tag the release
 cd ..
-git commit -m "$msg" public
-git push origin master
+git add version.txt buildDate.txt
+git commit -m "$msg"
+git tag "v$version"
+git push origin master --tags
+
+echo -e "$Green Deployment completed successfully!$Color_Off"
